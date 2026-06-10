@@ -1,6 +1,34 @@
 # RKIK - Changelog
 
 ## [Unreleased]
+
+## [2.2.1] - 2026-05-13
+
+### Added
+
+- **CSV output format** (`--format csv` / `-f csv`) — RFC 4180 compliant, fields: `target`, `stratum`, `offset_ms`, `delay_ms`, `timestamp`. Works in single-probe, compare, count, infinite, and legacy modes. Special characters (commas, quotes, newlines) are escaped per spec.
+
+### Fixed
+
+- **CSV `--count` / `--infinite`**: header was printed on every iteration instead of once; the stats summary line was leaking as plain text into the CSV stream. Header is now emitted once before the loop; stats are suppressed in CSV mode.
+
+### Removed
+
+- **PTP (IEEE 1588) support dropped** — removed the `ptp` feature flag, `PtpCommand` CLI subcommand, all associated adapters, domain types, services, formatters, stats helpers, and tests. The `statime` / `statime-linux` dependencies are gone. PTP is out of scope for the project's vision.
+- **Docker test environment removed** — deleted `dev/test-env/`, `scripts/test-env-up.sh`, and `scripts/test-env-down.sh`.
+
+### Changed
+
+- **Dependency update**: `rkik-nts` upgraded from v1.0.0 to v1.1.1
+  - New `KissOfDeath` error variant now mapped to `NtsErrorKind::Network`
+- Transitive dependency bumps: `tokio` 1.52.1→1.52.3, `wasm-bindgen` 0.2.120→0.2.121, `hashbrown`, `js-sys`, `cc`, `assert_cmd`
+
+### Fixed
+
+- **NTS clock offset always zero**: `rkik-nts`'s `offset_signed()` uses `as_millis()` which truncates sub-millisecond offsets to zero. Replaced with a direct nanosecond computation on `system_time`/`network_time`, matching the precision of the NTP path.
+- Strengthened `--plugin` mode validation by rejecting incompatible flags and preserving the fixed Nagios/Centreon-compatible text output.
+- Refactored repeated plugin error handling into a shared helper function.
+
 ---
 ## [2.2.0] - 2026-04-29
 ### Fixed
@@ -86,24 +114,15 @@
     - Self-signed certificate detection with warning
   - Full JSON export support for all NTS diagnostics
   - Compatible with all existing features (compare, plugin mode, etc.)
-- **Precision Time Protocol (PTP) diagnostics** (feature `ptp`, enabled by default on linux environments, unavailable for windows or macos)
-  - New CLI switch `--ptp` with domain and port controls (`--ptp-domain`, `--ptp-event-port`, `--ptp-general-port`)
-  - Hardware timestamping flag (`--ptp-hw-timestamp`) and verbose diagnostics mirroring IEEE 1588 master data
-  - Text and JSON renderers for single probes, compare mode, short/simple outputs, plugin lines, and stats
-  - Library exports (`PtpProbeResult`, `PtpQueryOptions`, etc.) plus deterministic adapter to exercise flows without special NICs
-- **Docker-based test environment** (`docs/TEST_ENV.md`)
-  - `./scripts/test-env-up.sh` / `test-env-down.sh` wrap `docker compose` to spawn three NTP daemons and a LinuxPTP grandmaster
-  - Targets exposed on high UDP ports for local RKIK runs and CI demos
 - **Config + presets**: `rkik config <list|get|set|clear|path>` and `rkik preset <list|add|remove|show|run>` backed by `~/.config/rkik/config.toml` (override via `RKIK_CONFIG_DIR`).
 - **CLI v2 spec** (`docs/cli_v2.md`) documenting the new UX and storage layout.
 
 ### Changed
-- **Default features**: NTS and PTP are now included by default alongside `json` and `sync`
+- **Default features**: NTS is now included by default alongside `json` and `sync`
 - **Dependency updates**:
   - `rkik-nts` upgraded from v0.2.0 to v0.3.0 (adds certificate support)
-  - `statime` / `statime-linux` pulled in for the PTP plumbing
 - **CLI redesign**:
-  - Introduced subcommands (`ntp`, `compare`, `ptp`, `sync`, `diag`, `config`, `preset`) while keeping the legacy parser for scripts that still call `rkik <target>`.
+  - Introduced subcommands (`ntp`, `compare`, `sync`, `diag`, `config`, `preset`) while keeping the legacy parser for scripts that still call `rkik <target>`.
   - Top-level help now focuses on the subcommand workflow; `--help`/`--version` run through the modern parser automatically.
   - Added TOML-backed defaults and presets with env override support.
 - `rkik help [command]` now prints the modern help output without triggering the legacy path, and legacy invocations stay silent (no more deprecation warning).
@@ -120,10 +139,9 @@
   - Certificate information included in JSON exports
   - Backwards compatible with non-NTS queries
 - **Tests**:
-  - Added deterministic unit tests for the PTP text/JSON renderers and stats helpers (no network dependency).
   - Added CLI tests for the new subcommands, config path override, and preset storage.
 - **CI**:
-  - GitHub Actions now caches build artifacts, runs `cargo fmt`/`clippy -D warnings`, and executes builds/tests across default, minimal, and full feature sets (excluding `network-tests`) to ensure the `ptp` feature stays covered.
+  - GitHub Actions now caches build artifacts, runs `cargo fmt`/`clippy -D warnings`, and executes builds/tests across default, minimal, and full feature sets (excluding `network-tests`).
 
 ### Examples
 ```bash

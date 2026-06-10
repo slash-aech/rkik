@@ -149,7 +149,7 @@ impl NtsValidationOutcome {
 pub struct NtsTimeResult {
     /// The network time received from the NTS server
     pub network_time: DateTime<Utc>,
-    /// Clock offset in milliseconds (positive means local clock is ahead)
+    /// Clock offset in milliseconds (positive means server is ahead — local clock is slow)
     pub offset_ms: f64,
     /// Round-trip time in milliseconds
     pub rtt_ms: f64,
@@ -223,6 +223,7 @@ fn map_nts_error(err: &NtsLibError) -> NtsErrorKind {
         NtsLibError::Tls(_) | NtsLibError::KeyExchange(_) => NtsErrorKind::KeHandshakeFailed,
         NtsLibError::Timeout => NtsErrorKind::Timeout,
         NtsLibError::Io(_) | NtsLibError::ServerUnavailable(_) => NtsErrorKind::Network,
+        NtsLibError::KissOfDeath(_) => NtsErrorKind::Network,
         NtsLibError::InvalidConfig(_) | NtsLibError::Other(_) => NtsErrorKind::Unknown,
     }
 }
@@ -319,7 +320,18 @@ pub async fn query_nts(
     // Convert SystemTime to DateTime<Utc>
     let network_time: DateTime<Utc> = time_snapshot.network_time.into();
 
-    let offset_ms = time_snapshot.offset_signed() as f64;
+    let sys_ns = time_snapshot
+        .system_time
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as i128;
+    let net_ns = time_snapshot
+        .network_time
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos() as i128;
+    // Positive = server ahead of local (local clock is slow) — same convention as rsntp/NTP path.
+    let offset_ms = (net_ns - sys_ns) as f64 / 1_000_000.0;
 
     // Convert round_trip_delay from Duration to milliseconds
     let rtt_ms = time_snapshot.round_trip_delay.as_secs_f64() * 1000.0;
